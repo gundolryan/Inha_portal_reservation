@@ -5,7 +5,7 @@ import { Calendar } from 'lucide-react';
 import { useReservations, Reservation } from '@/contexts/ReservationContext';
 
 export default function AdminPage() {
-  const { reservations, updateReservation, batchApprove1, batchCancel } = useReservations();
+  const { reservations, updateReservation, batchApprove1, batchCancel, exportExcel } = useReservations();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   // 상단 필터 상태
   const [searchStartDate, setSearchStartDate] = useState('2025-10-01');
@@ -62,11 +62,18 @@ export default function AdminPage() {
   };
 
 
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds(prev => checked ? Array.from(new Set([...prev, id])) : prev.filter(x => x !== id));
+  };
+
   const handleBulkAction = (action: string) => {
-    if (action === '1차확인' && selectedDetails) {
-       handleStatusChange({ target: { name: 'status1', value: '확인' } } as React.ChangeEvent<HTMLSelectElement>);
+    if (action === '1차확인') {
+      batchApprove1(selectedIds);
+    } else if (action === '일괄 취소') {
+      batchCancel(selectedIds);
+    } else if (action === '엑셀') {
+      exportExcel({ startDate: searchStartDate, endDate: searchEndDate, status: searchStatus });
     }
-    console.log(`일괄 ${action} 처리`);
   };
 
   return (
@@ -102,52 +109,37 @@ export default function AdminPage() {
           <p className="text-gray-500">조회된 Data가 존재하지 않습니다.</p>
         ) : (
           <div className="flex-1 overflow-y-auto">
-            <table className="w-full text-xs text-left table-auto">
-              <thead className="sticky top-0 bg-gray-100">
+            <table className="w-full">
+              <thead>
                 <tr>
-                  {/* [이 <th> 블록을 새로 추가하세요] */}
-                  <th className="p-2 border-b w-10 text-center">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          // 전체 선택
-                          setSelectedIds(filteredReservations.map(r => r.id));
-                        } else {
-                          // 전체 선택 해제
-                          setSelectedIds([]);
-                        }
-                      }}
-                    />
-                <tr>
-                  <th className="p-2 border-b">신청일자</th>
+                  <th className="p-2 border-b w-8"><input type="checkbox"
+                    onChange={(e) => setSelectedIds(e.target.checked ? filteredReservations.map(r=>r.id) : [])}
+                    checked={selectedIds.length>0 && selectedIds.length===filteredReservations.length}
+                  /></th>
+                  <th className="p-2 border-b">신청일</th>
+                  <th className="p-2 border-b">연번</th>
                   <th className="p-2 border-b">사용단체</th>
                   <th className="p-2 border-b">행사명</th>
                   <th className="p-2 border-b">행사장소</th>
-                  <th className="p-2 border-b">시작일</th>
-                  <th className="p-2 border-b">시작시간</th>
-                  <th className="p-2 border-b">1차</th>
-                  <th className="p-2 border-b">2차</th>
-                  <th className="p-2 border-b">상태</th>
                   <th className="p-2 border-b">연락처</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredReservations.map(res => (
-                  <tr
-                    key={res.id}
-                    onClick={() => handleAdminRowClick(res)}
-                    className={`cursor-pointer hover:bg-blue-50 ${selectedDetails?.id === res.id ? 'bg-blue-100' : ''}`}
-                  >
+                  <tr key={res.id} onClick={() => setSelectedDetails(res)} className="hover:bg-gray-50">
+                    <td className="p-2 border-b">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(res.id)}
+                        onChange={(e) => toggleSelect(res.id, e.target.checked)}
+                        onClick={(e)=>e.stopPropagation()}
+                      />
+                    </td>
                     <td className="p-2 border-b">{res.date}</td>
+                    <td className="p-2 border-b">{res.no}</td>
                     <td className="p-2 border-b">{res.facility}</td>
                     <td className="p-2 border-b">{res.instructor}</td>
                     <td className="p-2 border-b">{res.room}</td>
-                    <td className="p-2 border-b">{res.eventDate}</td>
-                    <td className="p-2 border-b">{res.time}</td>
-                    <td className="p-2 border-b">{res.status1}</td>
-                    <td className="p-2 border-b">{res.status2}</td>
-                    <td className="p-2 border-b">{res.status}</td>
                     <td className="p-2 border-b">{res.contact}</td>
                   </tr>
                 ))}
