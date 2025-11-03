@@ -74,6 +74,8 @@ export default function AdminPage() {
 
   const handleAdminRowClick = (reservation: Reservation) => {
     setSelectedDetails(reservation);
+    // 클릭 시 해당 행의 체크박스도 선택되도록 처리
+    setSelectedIds(prev => (prev.includes(reservation.id) ? prev : [...prev, reservation.id]));
   };
   
   // 메모가 변경될 때마다 Context를 업데이트하는 함수 (실제 저장 로직)
