@@ -97,33 +97,56 @@ def create_reservation(
 ):
     """
     새 예약 생성 (POST /api/reservations)
+    [수정됨] InhaPortal.tsx의 한글 status 값 ('신청중' 등)을 DB 값 ('pending' 등)으로 매핑
     """
     
-    # 1. 프론트에서 받은 데이터(reservation)로 DB 모델 객체 생성
-    db_reservation = models.Reservation(**reservation.model_dump())
+    # 1. 프론트엔드에서 받은 데이터를 dict로 변환
+    data = reservation.model_dump()
+
+    # --- [수정됨] 프론트엔드 한글 상태 -> DB 영어 상태로 매핑 ---
+    # (InhaPortal.tsx의 handleSubmit 및 checkAutoRule 기준)
     
-    # 2. DB 세션에 추가
+    # 1. approval_1 매핑 ('확인' -> 'approved')
+    if data.get("approval_1") == "확인":
+        data["approval_1"] = "approved"
+    else:
+        data["approval_1"] = "pending" # 그 외(미확인 등)는 모두 pending
+        
+    # 2. approval_2 매핑 ('확인' -> 'approved')
+    if data.get("approval_2") == "확인":
+        data["approval_2"] = "approved"
+    else:
+        data["approval_2"] = "pending"
+
+    # 3. status 매핑 ('승인' -> 'confirmed', '취소' -> 'cancelled')
+    if data.get("status") == "승인":
+        data["status"] = "confirmed"
+    elif data.get("status") == "취소":
+        data["status"] = "cancelled"
+    else:
+        data["status"] = "pending" # '신청중' 또는 그 외는 모두 pending
+    # ----------------------------------------------------
+
+    # 2. 매핑된 데이터로 DB 모델 객체 생성
+    db_reservation = models.Reservation(**data)
+    
+    # 3. DB에 추가, 커밋, 새로고침
     db.add(db_reservation)
-    
-    # 3. DB에 커밋 (실제 저장)
     db.commit()
-    
-    # 4. DB에 의해 자동 생성된 ID 등을 포함한 객체를 다시 로드
     db.refresh(db_reservation)
     
-    # 5. (중요) JOIN된 데이터를 다시 조회해서 반환
-    #    (schemas.Reservation이 user, facility 정보를 요구하기 때문)
+    # 4. JOIN된 데이터를 다시 조회해서 반환 (3단 조인)
     result = db.query(models.Reservation).options(
-    # User와 Department JOIN
-    joinedload(models.Reservation.user).joinedload(models.User.department),
-    # Facility와 Category1, Category2를 3단 JOIN
-    joinedload(models.Reservation.facility)
-        .joinedload(models.Facility.category2)
-        .joinedload(models.FacilityCategory2.category1)
+        joinedload(models.Reservation.user).joinedload(models.User.department),
+        joinedload(models.Reservation.facility)
+            .joinedload(models.Facility.category2)
+            .joinedload(models.FacilityCategory2.category1)
     ).filter(models.Reservation.reservation_id == db_reservation.reservation_id).first()
 
     return result
 
+
+# ... (create_reservation 함수 바로 아래) ...
 
 @app.put("/api/reservations/{reservation_id}", response_model=schemas.Reservation)
 def update_reservation(
@@ -133,50 +156,71 @@ def update_reservation(
 ):
     """
     기존 예약 수정 (PUT /api/reservations/{id})
-    page.tsx의 '1차확인', '2차확인', '상태' 변경 기능
+    [수정됨] 1차/2차/냉난방 확인 시 'status' 자동 승인 로직 수정
     """
     
-    # 1. DB에서 수정할 예약을 찾음
+    # 1. DB에서 예약 찾기
     db_reservation = db.query(models.Reservation).filter(
         models.Reservation.reservation_id == reservation_id
     ).first()
-
     if db_reservation is None:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    # 2. 프론트에서 보낸 수정 데이터(reservation_update)로 필드 값 변경
-    #    (주의: 값이 None이 아닌 필드만 업데이트)
+    # 2. 프론트에서 보낸 데이터(dict)
     update_data = reservation_update.model_dump(exclude_unset=True)
     
-    # page.tsx의 'status1', 'status2'를 DDL의 'approval_1', 'approval_2'로 매핑
+    # 3. DB에 값 1차 업데이트 (매핑)
     if "status1" in update_data:
         db_reservation.approval_1 = 'approved' if update_data["status1"] == '확인' else 'pending'
     if "status2" in update_data:
         db_reservation.approval_2 = 'approved' if update_data["status2"] == '확인' else 'pending'
+    if "admin_memo" in update_data:
+        db_reservation.admin_memo = update_data["admin_memo"]
     
-    # DDL의 status 필드 업데이트
-    if "status" in update_data:
-        db_reservation.status = update_data["status"]
-        
-    # DDL의 hvac_mode 필드 업데이트
-    if "hvac_mode" in update_data:
-        db_reservation.hvac_mode = update_data["hvac_mode"]
+    # (참고) 프론트엔드의 '신청취소' 요청 처리
+    if "status" in update_data and update_data["status"] == '취소':
+        db_reservation.status = 'cancelled'
 
-    # 3. DB에 커밋 (변경 사항 저장)
+    # --- [NEW] 4. 새 자동 승인 로직 (백엔드 중심) ---
+    # (단, 방금 '취소'로 바꾼게 아니라면)
+    if db_reservation.status != 'cancelled':
+        
+        # 4a. 냉난방 사용 여부 (InhaPortal.tsx가 저장한 hvac_dept 기준)
+        # (hvac_dept: '미신청' or '기관실')
+        is_hvac_requested = db_reservation.hvac_dept is not None and db_reservation.hvac_dept != '미신청'
+        
+        # 4b. 냉난방 승인 여부 (AdminPage.tsx가 보낸 hvacStatus 기준)
+        is_hvac_approved_by_admin = False
+        if "hvacStatus" in update_data:
+            if update_data["hvacStatus"] == '확인':
+                is_hvac_approved_by_admin = True
+        
+        # 4c. 승인 조건 계산 (사용자 요구사항)
+        hvacOk = False
+        if not is_hvac_requested:
+            hvacOk = True # (1. 미사용이면 OK)
+        else:
+            hvacOk = is_hvac_approved_by_admin # (2. 사용이면 '확인'이어야 OK)
+        
+        # 4d. 최종 상태 결정
+        if (db_reservation.approval_1 == 'approved' and 
+            db_reservation.approval_2 == 'approved' and 
+            hvacOk):
+            
+            db_reservation.status = 'confirmed' # ➔ '승인'
+        else:
+            db_reservation.status = 'pending' # ➔ '신청중' (하나라도 만족 못하면)
+
+    # 5. DB 커밋 (모든 변경사항)
     db.commit()
-    
-    # 4. DB에서 변경된 객체를 다시 로드
     db.refresh(db_reservation)
     
-    # 5. JOIN된 데이터를 다시 조회해서 반환
-    # (update_reservation 함수 맨 아래)
+    # 6. JOIN된 데이터 반환 (3단 조인)
     result = db.query(models.Reservation).options(
-    # User와 Department JOIN
-    joinedload(models.Reservation.user).joinedload(models.User.department),
-    # Facility와 Category1, Category2를 3단 JOIN
-    joinedload(models.Reservation.facility)
-        .joinedload(models.Facility.category2)
-        .joinedload(models.FacilityCategory2.category1)
+        joinedload(models.Reservation.user).joinedload(models.User.department),
+        joinedload(models.Reservation.facility)
+            .joinedload(models.Facility.category2)
+            .joinedload(models.FacilityCategory2.category1)
     ).filter(models.Reservation.reservation_id == db_reservation.reservation_id).first()
 
     return result

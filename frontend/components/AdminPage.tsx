@@ -11,8 +11,9 @@ import { ChangeEvent } from 'react'; // React 이벤트 타입 추가
 
 // AdminPage 컴포넌트 전체 코드를 여기에 포함
 export default function AdminPage() {
-  const { reservations, updateReservation } = useReservations();
+  const { reservations, updateReservation,batchApprove1,batchCancel,updateAdminMemo} = useReservations();
   const { autoRules } = useAuth(); 
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // 상단 필터 상태
   const [searchStartDate, setSearchStartDate] = useState('2025-10-01');
@@ -80,19 +81,30 @@ export default function AdminPage() {
       const newMemo = e.target.value;
       setAdminMemo(newMemo);
       if (selectedDetails) {
-          const updatedDetails = { ...selectedDetails, adminMemo: newMemo };
-          updateReservation(updatedDetails as Reservation); // 👈 타입 단언
-          setSelectedDetails(updatedDetails as Reservation); 
-      }
-  };
+        // (참고) 메모는 타이핑할 때마다 저장하면 비효율적이므로,
+        // AdminPage.tsx의 UI에는 '저장' 버튼이 필요합니다.
+        // 우선은 'admin_memo' 필드만 updateReservation을 통해 저장합니다.
+        // [수정] updateReservation 대신 updateAdminMemo 호출
+
+        // 🚨 TODO: 잦은 API 호출을 막기 위해 '저장' 버튼을 따로 만들거나, 
+        //         '포커스 아웃' 시 저장하는 로직(useRef, onBlur)이 필요합니다.
+        //         우선은 임시로 updateAdminMemo를 호출합니다.
+        updateAdminMemo(selectedDetails.id, newMemo);
+
+        // 로컬 상태도 업데이트 (Context가 업데이트 해주긴 하지만 중복 실행)
+        setSelectedDetails(prev => prev ? ({ ...prev, adminMemo: newMemo }) : null);
+    }
+};
 
 
-  const handleStatusChange = (e: ChangeEvent<HTMLSelectElement>) => { // 👈 타입 지정
-    const { name, value } = e.target;
+  const handleStatusChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target; // name: 'status1' 또는 'hvacStatus', value: '확인' 등
     if (!selectedDetails) return;
 
+    // 1. 변경된 값을 일단 적용
     let updatedDetails: Reservation = { ...selectedDetails, [name]: value };
 
+    // 2. '신청취소' 드롭다운을 조작한 경우의 로직
     if (name === 'statusApplicationCancel') {
       const isCanceled = value === 'Y';
       updatedDetails.status = isCanceled ? '취소' : (selectedDetails.status === '취소' ? '신청중' : selectedDetails.status);
@@ -102,8 +114,37 @@ export default function AdminPage() {
       setCancelDate(isCanceled ? formatDate(new Date()) : '');
     }
     
-    updateReservation(updatedDetails);
-    setSelectedDetails(updatedDetails); 
+    // --- [NEW] 3. 자동 승인 로직 (UI 즉시 반응용) ---
+    // (단, '신청취소'를 누른 경우는 이 로직을 건너뜀)
+    if (name !== 'statusApplicationCancel' && updatedDetails.status !== '취소') {
+        
+        // 3a. 냉난방 상태 확인 (사용자 요구사항)
+        // (hvacStatus: '미신청', '신청', '확인')
+        const currentHvacStatus = updatedDetails.hvacStatus;
+
+        let hvacOk = false;
+        if (currentHvacStatus === '미신청') {
+            hvacOk = true; // (1. 미신청이면 OK)
+        } else {
+            hvacOk = (currentHvacStatus === '확인'); // (2. 신청했으면 '확인'이어야 OK)
+        }
+
+        // 3b. 최종 승인 검사
+        if (updatedDetails.status1 === '확인' && 
+            updatedDetails.status2 === '확인' && 
+            hvacOk) 
+        {
+            updatedDetails.status = '승인';
+        } else if (updatedDetails.status === '승인') {
+            // (반대) 승인 상태였는데 조건이 깨지면 ➔ '신청중'
+            updatedDetails.status = '신청중';
+        }
+    }
+    // ---------------------------------------------
+
+    // 4. 최종적으로 변경된 'updatedDetails' 객체로 API 호출 및 UI 업데이트
+    updateReservation(updatedDetails); // 👈 Context의 updateReservation 호출
+    setSelectedDetails(updatedDetails); // 👈 하단 폼 UI 즉시 업데이트
   };
 
   const handleBulkAction = (action: string) => {
@@ -151,8 +192,48 @@ export default function AdminPage() {
                 자동 규칙 관리 ({autoRules.length})
             </button>
             <button onClick={() => handleBulkAction('메세지 발송')} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">일괄 메세지 발송</button>
-            <button onClick={() => handleBulkAction('일괄 취소')} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">일괄 취소</button>
-            <button onClick={() => handleBulkAction('엑셀')} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">엑셀</button>
+            
+            <button
+              onClick={() => {
+                if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
+                if (window.confirm(`선택된 ${selectedIds.length}개 항목을 '1차 확인' 처리하시겠습니까?`)) {
+                  batchApprove1(selectedIds); // 👈 API 함수 호출
+                  setSelectedIds([]); // 선택 해제
+                }
+              }}
+              className="px-2 py-1 bg-blue-200 text-blue-700 text-xs rounded hover:bg-blue-300"
+            >
+              일괄 확인
+              </button>
+            <button 
+              onClick={() => {                                                                                
+                if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
+                if (window.confirm(`선택된 ${selectedIds.length}개 항목을 '취소' 처리하시겠습니까?`)) {
+                  batchCancel(selectedIds);
+                  setSelectedIds([]);
+                }
+              }}
+              className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+            >
+              일괄 취소
+            </button>
+            <button 
+              onClick={() => {
+                const baseUrl = 'http://localhost:8000/api/reservations/export';
+
+    
+                const params = new URLSearchParams();
+                params.append('startDate', searchStartDate);
+                params.append('endDate', searchEndDate);
+                params.append('status', searchStatus);
+
+    
+                window.open(`${baseUrl}?${params.toString()}`, '_blank');
+              }}
+              className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+            >
+              엑셀
+            </button>
           </div>
         </div>
       </div>
@@ -166,6 +247,20 @@ export default function AdminPage() {
             <table className="w-full text-xs text-left table-auto">
               <thead className="sticky top-0 bg-gray-100">
                 <tr>
+                  <th className="p-2 border-b w-10 text-center">
+                    <input
+                      type="checkbox"
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          // 전체 선택
+                          setSelectedIds(filteredReservations.map(r => r.id));
+                        } else {
+                            // 전체 선택 해제
+                            setSelectedIds([]);
+                          }
+                      }}
+                    />
+                  </th>
                   <th className="p-2 border-b">신청일자</th>
                   <th className="p-2 border-b">사용단체</th>
                   <th className="p-2 border-b">행사명</th>
@@ -185,6 +280,22 @@ export default function AdminPage() {
                     onClick={() => handleAdminRowClick(res)}
                     className={`cursor-pointer hover:bg-blue-50 ${selectedDetails?.id === res.id ? 'bg-blue-100' : ''}`}
                   >
+                    <td 
+                      className="p-2 border-b text-center"
+                      onClick={(e) => e.stopPropagation()} // (중요) 체크박스 클릭 시 행 클릭 방지
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(res.id)} // 👈 선택 상태
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds(prev => [...prev, res.id]);
+                          } else {
+                            setSelectedIds(prev => prev.filter(id => id !== res.id));
+                          }
+                        }}
+                      />
+                    </td>
                     <td className="p-2 border-b">{res.date}</td>
                     <td className="p-2 border-b">{res.facility}</td>
                     <td className="p-2 border-b">{res.instructor}</td>

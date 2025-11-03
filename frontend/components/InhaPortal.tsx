@@ -494,7 +494,9 @@ export default function InhaPortal() {
                 </tr>
               </thead>
               <tbody>
-                {reservations.filter((res: Reservation) => res.submitterId === userId).map((res: Reservation) => ( // 👈 타입 지정
+                {reservations
+                  .filter((res: Reservation) => res.submitterId === userId && res.status !== '취소')
+                  .map((res: Reservation) => ( // 👈 타입 지정
                   <tr key={res.id} onClick={() => handleRowClick(res)} className={`border-b border-gray-200 cursor-pointer ${res.id === selectedReservationId ? 'bg-blue-100' : 'hover:bg-gray-50'}`}>
                     <td className="px-4 py-3 text-sm text-center">{res.date}</td> <td className="px-4 py-3 text-sm text-center">{res.no}</td> <td className="px-4 py-3 text-sm text-center">{res.facility}</td> <td className="px-4 py-3 text-sm text-center">{res.instructor}</td> <td className="px-4 py-3 text-sm text-center">{res.room}</td> <td className="px-4 py-3 text-sm text-center">{res.eventDate}</td> <td className="px-4 py-3 text-sm text-center">{res.time}</td> <td className="px-4 py-3 text-sm text-center">{res.endTime}</td> <td className="px-4 py-3 text-sm text-center">{res.status}</td>
                   </tr>

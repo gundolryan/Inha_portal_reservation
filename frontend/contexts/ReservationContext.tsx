@@ -1,50 +1,72 @@
-// contexts/ReservationContext.tsx
+// 🎯 contexts/ReservationContext.tsx
 'use client';
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
-// --- 1. 프론트엔드 UI가 사용하는 데이터 구조 (기존과 동일) ---
+// --- 1. 프론트엔드 UI가 사용하는 데이터 구조 (새 스키마 반영) ---
 export interface Reservation {
   id: number;
   date: string;
   no: number;
-  facility: string; // 사용단체 (BE: group_name)
-  instructor: string; // 행사명 (BE: event_name)
-  room: string; // 행사장소 (BE: facility.name)
-  eventDate: string; // 사용일 (BE: start_time)
-  time: string; // 사용시간 (BE: start_time)
-  endTime: string; // 사용종료시간 (BE: end_time)
-  status: '신청중' | '승인' | '취소'; // (BE: status)
-  dept1: string; // 1차 확인 부서 (Default)
-  status1: string; // 1차 확인 (BE: approval_1)
-  dept2: string; // 2차 확인 부서 (Default)
-  status2: string; // 2차 확인 (BE: approval_2)
-  hvacCheckDept: string; // 냉난방 (Default)
-  hvacStatus: string; // 냉난방 (BE: hvac_mode)
-  roomCat1: string; // (Default)
-  roomCat2: string; // (Default)
-  roomCat3: string; // (Default)
-  orgName: string; // (Default)
-  orgMiddleCat: string; // (Default)
-  orgDetail: string; // (Default)
-  contact: string; // 연락처 (BE: user.phone)
-  emailLocal: string; // (BE: user.email)
-  emailDomain: string; // (BE: user.email)
-  eventHeadcount: string | number; // (Default: 0)
-  hvacUsage: string; // (BE: hvac_mode)
-  rentalItems: string; // (BE: message)
-  statusBroadcast?: 'Y' | 'N'; // (Default: 'N')
+  facility: string;
+  instructor: string;
+  room: string;
+  eventDate: string;
+  time: string;
+  endTime: string;
+  status: '신청중' | '승인' | '취소';
+  dept1: string;
+  status1: string;
+  dept2: string;
+  status2: string;
+  hvacCheckDept: string;
+  hvacStatus: string;
+  roomCat1: string;
+  roomCat2: string;
+  roomCat3: string;
+  orgName: string;
+  orgMiddleCat: string;
+  orgDetail: string;
+  contact: string;
+  emailLocal: string;
+  emailDomain: string;
+  eventHeadcount: string | number;
+  hvacUsage: string;
+  rentalItems: string;
+  statusBroadcast?: 'Y' | 'N';
+  submitterId: string;
+  submitterName: string;
+  submitterMajor: string; 
+  adminMemo: string; // 👈 [NEW] adminMemo 필드 추가
 }
 
-// --- 2. 백엔드(schemas.py)에서 보내주는 데이터 구조 정의 ---
-// (schemas.Reservation과 일치해야 함)
-// --- 2. (수정됨) 백엔드에서 보내주는 데이터 구조 정의 ---
+// (InhaPortal.tsx의 handleSubmit 기준)
+type NewReservationData = Omit<Reservation, 'id' | 'no' | 'adminMemo'> & {
+    submitterId: string;
+    submitterName: string;
+    submitterMajor: string;
+};
+
+// --- [수정됨] API 연동을 위한 새 함수들 추가 (관리자용) ---
+interface ReservationContextType {
+  reservations: Reservation[];
+  addReservation: (newReservation: NewReservationData) => Promise<void>; // (async)
+  cancelReservation: (reservationId: number) => Promise<void>; // (async)
+  updateReservation: (updatedReservation: Reservation) => Promise<void>; // (async)
+  
+  // (AdminPage.tsx용 함수들)
+  batchApprove1: (reservationIds: number[]) => Promise<void>;
+  batchCancel: (reservationIds: number[]) => Promise<void>;
+  // (AdminPage.tsx의 메모 저장을 위한 함수)
+  updateAdminMemo: (reservationId: number, adminMemo: string) => Promise<void>;
+}
+
+// --- 2. [수정됨] 백엔드(schemas.py)에서 보내주는 데이터 구조 정의 ---
 interface BackendUser {
   user_id: number;
   email: string;
   name: string;
   phone: string | null;
-  // (참고) department 정보는 아직 UI에 표시하지 않음
 }
 interface BackendFacilityCategory1 {
   name: string;
@@ -57,50 +79,56 @@ interface BackendFacility {
   facility_id: number;
   name: string;
   capacity: number | null;
-  category2: BackendFacilityCategory2; // 👈 수정됨
+  category2: BackendFacilityCategory2;
 }
 interface BackendReservation {
   reservation_id: number;
   user_id: number;
   facility_id: number;
   
-  // --- [수정됨] 3. 사용단체 분류 ---
   org_cat1: string | null;
   org_cat2: string | null;
   group_name: string | null;
-
   event_name: string | null;
-
-  // --- [수정됨] 2. 행사인원 ---
   event_headcount: number | null;
-
   message: string | null;
-  start_time: string; // (ISO datetime string)
-  end_time: string; // (ISO datetime string)
+  start_time: string;
+  end_time: string;
   hvac_mode: 'none' | 'heat' | 'cool';
-
-  // --- [수정됨] 1. 확인부서 ---
+  
   hvac_dept: string | null;
   approval_1: 'pending' | 'approved' | 'rejected';
   approval_1_dept: string | null;
   approval_2: 'pending' | 'approved' | 'rejected';
   approval_2_dept: string | null;
-
+  
   status: 'pending' | 'confirmed' | 'cancelled';
-  created_at: string; // (ISO datetime string)
-  updated_at: string; // (ISO datetime string)
+
+  submitter_id: string | null;
+  submitter_name: string | null;
+  submitter_major: string | null;
+  
+  // --- [수정됨] 새 컬럼 2개 추가 ---
+  submitter_phone: string | null;
+  submitter_email: string | null;
+
+  admin_memo: string | null;
+  
+  created_at: string;
+  updated_at: string;
   
   user: BackendUser;
   facility: BackendFacility;
 }
 
-// --- 3. (수정됨) 백엔드 데이터 -> 프론트엔드 "번역" 함수 ---
+// --- 3. [수정됨] 백엔드 데이터 -> 프론트엔드 데이터 "번역" 함수 ---
 const mapBackendToFrontend = (be: BackendReservation, index: number): Reservation => {
   const startDate = new Date(be.start_time);
   const endDate = new Date(be.end_time);
   const createdAt = new Date(be.created_at);
   
-  const [emailLocal, emailDomain] = be.user.email.split('@');
+  // [수정됨] email을 user.email이 아닌 submitter_email에서 가져옴
+  const [emailLocal, emailDomain] = be.submitter_email ? be.submitter_email.split('@') : ['', ''];
 
   let feStatus: '신청중' | '승인' | '취소' = '신청중';
   if (be.status === 'confirmed') feStatus = '승인';
@@ -110,11 +138,10 @@ const mapBackendToFrontend = (be: BackendReservation, index: number): Reservatio
   if (be.hvac_mode === 'heat' || be.hvac_mode === 'cool') feHvacStatus = '신청';
 
   return {
-    // --- BE에서 매핑되는 값 ---
     id: be.reservation_id,
     no: index + 1,
     date: createdAt.toISOString().split('T')[0],
-    facility: be.group_name || '',        // 👈 '세부 단체명'
+    facility: be.group_name || '',
     instructor: be.event_name || '',
     room: be.facility.name,
     eventDate: startDate.toISOString().split('T')[0],
@@ -124,55 +151,53 @@ const mapBackendToFrontend = (be: BackendReservation, index: number): Reservatio
     status1: be.approval_1 === 'approved' ? '확인' : '미확인',
     status2: be.approval_2 === 'approved' ? '확인' : '미확인',
     hvacStatus: feHvacStatus,
-    hvacUsage: be.hvac_mode === 'none' ? '미사용' : '사용',
-    contact: be.user.phone || '',
+    hvacUsage: be.hvac_mode === 'none' ? '미사용' : (be.hvac_mode === 'heat' ? '난방' : '냉방'),
+    
+    // [수정됨] 연락처/이메일을 user.phone이 아닌 submitter_phone에서 가져옴
+    contact: be.submitter_phone || '', 
     emailLocal: emailLocal || '',
-    emailDomain: emailDomain || '',
+    emailDomain: emailDomain || 'inha.ac.kr',
+    
     rentalItems: be.message || '',
-
-    // --- [수정됨] 새 컬럼 매핑 ---
-    dept1: be.approval_1_dept || '', // 👈 'API연동' -> DB 컬럼
-    dept2: be.approval_2_dept || '', // 👈 'API연동' -> DB 컬럼
-    hvacCheckDept: be.hvac_dept || '', // 👈 'API연동' -> DB 컬럼
+    dept1: be.approval_1_dept || '',
+    dept2: be.approval_2_dept || '',
+    hvacCheckDept: be.hvac_dept || '',
     
     roomCat1: be.facility.category2.category1.name,
     roomCat2: be.facility.category2.name,
     roomCat3: be.facility.name,
 
-    orgName: be.org_cat1 || '',      // 👈 '단체분류1'
-    orgMiddleCat: be.org_cat2 || '', // 👈 '단체분류2'
-    orgDetail: be.group_name || '',    // 👈 '세부 단체명'
+    orgName: be.org_cat1 || '',
+    orgMiddleCat: be.org_cat2 || '',
+    orgDetail: be.group_name || '',
     
-    eventHeadcount: be.event_headcount || 0, // 👈 '0명' -> DB 컬럼
+    eventHeadcount: be.event_headcount || 0,
+    
+    submitterId: be.submitter_id || '',
+    submitterName: be.submitter_name || '',
+    submitterMajor: be.submitter_major || '',
+    adminMemo: be.admin_memo || '',
+
     statusBroadcast: 'N',
   };
 };
 
-// --- (기존과 동일한 부분) ---
-type NewReservationData = Omit<Reservation, 'id' | 'no'>;
-interface ReservationContextType {
-  reservations: Reservation[];
-  addReservation: (newReservation: NewReservationData) => void;
-  cancelReservation: (reservationId: number) => void;
-  updateReservation: (updatedReservation: Reservation) => void;
-}
+
 const ReservationContext = createContext<ReservationContextType | undefined>(undefined);
+
 interface ReservationProviderProps {
   children: ReactNode;
 }
-// --- (여기까지 동일) ---
 
-
+// --- [수정됨] 4. API 연동으로 Context Provider 전체 교체 ---
 export function ReservationProvider({ children }: ReservationProviderProps) {
   
-  // --- 4. API 로딩 상태 관리 ---
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // 로딩 중 상태
+  const [isLoading, setIsLoading] = useState(true);
   
-  const API_URL = 'http://localhost:8000/api/reservations';
+  const API_URL = 'http://localhost:8000/api/reservations'; // 백엔드 API 주소
 
   // --- 5. (교체됨) localStorage -> API (GET) ---
-  // 컴포넌트 마운트 시 *단 1회* API에서 데이터를 가져옴
   useEffect(() => {
     const fetchReservations = async () => {
       setIsLoading(true);
@@ -186,7 +211,6 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
         // (핵심) 백엔드 데이터를 프론트엔드 형식으로 "번역"
         const frontendData: Reservation[] = backendData
           .map(mapBackendToFrontend)
-          .filter(res => res.status !== '취소')
           .sort((a, b) => b.id - a.id); // 최신순 정렬 (ID 내림차순)
           
         setReservations(frontendData);
@@ -201,136 +225,281 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     fetchReservations();
   }, []); // 빈 배열: 마운트 시 1회만 실행
 
- // ... (useEffect 함수 바로 아래) ...
-
-  // --- 6. (교체됨) CRUD 함수들 ---
-
-  // --- (교체됨) addReservation 함수 (POST API 연동 - 최종본) ---
+  // --- 6. (교체됨) CRUD 함수들 (API 연동) ---
+  const facilityNameToIdMap: Record<string, number> = {
+  '인문스터디룸B(5남-032B)': 1,
+  '인문스터디룸C(5남-032C)': 2,
+  '인문스터디룸D(5남-032D)': 3,
+  '인문스터디룸E(5남-032E)': 4,
+  '인문스터디룸F(5남-032F)': 5,
+  '해동스터디룸A(하-132A)': 6,
+  '해동스터디룸B(하-132B)': 7,
+  '해동스터디룸C(하-132C)': 8,
+  '해동스터디룸D(하-132D)': 9,
+  '해동스터디룸E(하-132E)': 10,
+  '해동스터디룸F(하-132F)': 11,
+  '해동스터디룸G(하-132G)': 12,
+  '학생라운지스터디룸(하-021)': 13,
+  '운동장(축구장)': 14,
+  '운동장(다목적구장 1(학군단쪽))': 15,
+  '운동장(다목적구장 2(5남쪽))': 16,
+  '제1테니스장 3번': 17,
+  '제1테니스장 4번': 18,
+  '제1테니스장 5번': 19,
+  '제2테니스장 6번': 20,
+  '제2테니스장 7번': 21,
+  '제2테니스장 8번': 22,
+  '농구장 1면(야구장쪽에서 첫번째)': 23,
+  '농구장 2면(야구장쪽에서 두번째)': 24,
+  '농구장 3면(야구장쪽에서 세번째)': 25,
+  '농구장 4면(야구장쪽에서 네번째)': 26,
+  '인하풋살파크A': 27,
+  '인하풋살파크D': 28,
+  '피클볼 1코트': 29,
+  '피클볼 2코트(우레탄)': 30,
+  '피클볼 3코트': 31,
+  '피클볼 4코트': 32,
+  '피클볼 5코트': 33,
+  '학생회관403호': 34,
+  '학생회관404호': 35,
+  '학생회관406호': 36,
+  '5남-101': 37, '5남-102': 38, '5남-201': 39, '5남-202': 40,
+  '하-101': 41, '하-102': 42, '하-201': 43, '하-202': 44,
+  };
   const addReservation = async (newReservation: NewReservationData) => {
-    
+
     // 1. 프론트엔드 폼 데이터 -> 백엔드 API 형식으로 "역-번역"
-    // (schemas.ReservationCreate 형식에 맞게)
+
+    // [수정됨] Bug 1: facility_id 하드코딩 제거
+    // InhaPortal.tsx에서 보낸 room(시설명)을 ID로 변환
+    const facilityName = newReservation.room;
+    const facility_id = facilityNameToIdMap[facilityName] || 1; // 맵에서 찾고, 못찾으면 1번(기본)
+
+    // [수정됨] Bug 2: email/contact 매핑
+    // InhaPortal.tsx에서 보낸 contact, emailLocal, emailDomain 사용
+    const submitter_phone = newReservation.contact;
+    const submitter_email = newReservation.emailDomain === '직접입력' 
+                            ? newReservation.emailLocal 
+                            : `${newReservation.emailLocal}@${newReservation.emailDomain}`;
+
     const backendCreateData = {
-      // (임시 테스트) user_id와 facility_id를 DB에 있는 값으로 고정
       // 🚨 TODO: 로그인 기능 구현 후 실제 user_id로 변경해야 함
       user_id: 1, 
-      // 🚨 TODO: facility_id도 폼에서 선택된 roomCat3(시설명)을
-      //         실제 facility_id(숫자)로 변환하는 로직이 필요함. (일단 2로 고정)
-      facility_id: 2, 
+      facility_id: facility_id, // 👈 [수정됨]
 
-      // --- [수정됨] 새 컬럼 매핑 ---
-      // 3. 사용단체 (app/page.tsx의 orgName, orgMiddleCat, facility(finalOrgName) 사용)
-      org_cat1: newReservation.orgName,       // 대분류
-      org_cat2: newReservation.orgMiddleCat,  // 중분류
-      group_name: newReservation.facility,    // 세부 단체명 (finalOrgName)
-
-      // 2. 행사인원 (app/page.tsx의 eventHeadcount 사용)
+      org_cat1: newReservation.orgName,
+      org_cat2: newReservation.orgMiddleCat,
+      group_name: newReservation.facility, 
       event_name: newReservation.instructor,
-      event_headcount: Number(newReservation.eventHeadcount) || 0, // 숫자로 변환
-      
+      event_headcount: Number(newReservation.eventHeadcount) || 0,
+
       message: newReservation.rentalItems,
       start_time: `${newReservation.eventDate}T${newReservation.time}`,
       end_time: `${newReservation.eventDate}T${newReservation.endTime}`,
-      hvac_mode: newReservation.hvacUsage === '사용' ? 'cool' : 'none', // (hvacUsage는 '미사용'/'냉방'/'난방' 값을 가짐)
+      hvac_mode: newReservation.hvacUsage === '난방' ? 'heat' : (newReservation.hvacUsage === '냉방' ? 'cool' : 'none'),
 
-      // 1. 확인부서 (app/page.tsx의 dept1, dept2, hvacCheckDept 사용)
       approval_1_dept: newReservation.dept1,
       approval_2_dept: newReservation.dept2,
       hvac_dept: newReservation.hvacCheckDept,
+
+      submitter_id: newReservation.submitterId,
+      submitter_name: newReservation.submitterName,
+      submitter_major: newReservation.submitterMajor,
+
+      // --- [수정됨] Bug 2: 새 컬럼에 데이터 매핑 ---
+      submitter_phone: submitter_phone,
+      submitter_email: submitter_email,
+
+      admin_memo: newReservation.adminMemo,
+
+      status: newReservation.status,
+      approval_1: newReservation.status1,
+      approval_2: newReservation.status2,
     };
 
     try {
       // 2. POST /api/reservations API 호출
       const response = await fetch(API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(backendCreateData),
       });
 
       if (!response.ok) {
-        // 백엔드에서 온 상세 에러 메시지를 표시
         const errorData = await response.json();
         console.error("API Error Data:", errorData);
         throw new Error(`새 예약 생성에 실패했습니다: ${errorData.detail || response.statusText}`);
       }
 
-      // 3. 백엔드에서 생성된 *최신* 예약 정보를 다시 받음 (JOIN 포함)
       const savedBackendData: BackendReservation = await response.json();
+      const newFrontendData = mapBackendToFrontend(savedBackendData, 0);
 
-      // 4. 받은 최신 데이터를 프론트엔드 형식으로 "번역"
-      const newFrontendData = mapBackendToFrontend(savedBackendData, 0); // (no는 임시)
-
-      // 5. 프론트엔드 상태(state) 업데이트
-      //    (백엔드에서 받은 실제 데이터로 목록 맨 위에 추가)
       setReservations(prev => {
-        // 'no' 번호를 올바르게 다시 매기기
         const renumberedPrev = prev.map(item => ({ ...item, no: item.no + 1 }));
-        newFrontendData.no = 1; // 새 항목을 1번으로
-        return [newFrontendData, ...renumberedPrev];
+        newFrontendData.no = 1;
+        return [newFrontendData, ...prev];
       });
 
     } catch (error) {
       console.error("Failed to create reservation:", error);
-      // (TODO: 사용자에게 에러 알림창 띄우기)
     }
-  };
+};
 
-  // ... (addReservation 함수 바로 아래) ...
-
-  // --- (교체!) 'DELETE'가 아닌 'PUT'으로 상태 변경 ---
+  // (PUT) InhaPortal.tsx의 '신청취소'
   const cancelReservation = async (reservationId: number) => {
     
-    // 1. (UI) 사용자에게 정말 취소할 것인지 확인
-    if (!window.confirm("이 예약을 '신청취소' 하시겠습니까?")) {
-      return; // 사용자가 '아니오'를 누르면 함수 종료
-    }
-
-    // 2. 백엔드에 보낼 데이터: 상태를 'cancelled'로 변경
+    // (InhaPortal.tsx에서 이미 confirm 창을 띄움)
     const backendUpdateData = {
-      status: 'cancelled' // (중요) '삭제'가 아닌 '취소' 상태로
+      status: '취소' // (DB에서 'cancelled'로 매핑됨)
     };
 
     try {
-      // 3. 'DELETE'가 아닌 'PUT' API 호출
       const response = await fetch(`${API_URL}/${reservationId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(backendUpdateData),
       });
 
-      if (!response.ok) {
-        throw new Error('예약 취소에 실패했습니다.');
-      }
+      if (!response.ok) throw new Error('예약 취소에 실패했습니다.');
 
-      // 4. 백엔드에서 수정된 *최신* 예약 정보를 다시 받음
       const savedBackendData: BackendReservation = await response.json();
-      
-      // 5. 받은 최신 데이터를 프론트엔드 형식으로 "번역"
       const updatedFrontendData = mapBackendToFrontend(savedBackendData, 0);
 
-      // (cancelReservation 함수 맨 아래)
-      // 6. 프론트엔드 상태(state) 업데이트
-      //    ('교체'가 아닌 '제거' (filter)로 변경)
+      // (InhaPortal.tsx의 요구사항: 취소한 항목은 화면에서 제거)
       setReservations(prev => 
-        prev.filter(res => res.id !== reservationId)
+        prev.map(res => {
+          if (res.id === updatedFrontendData.id) {
+            return { ...updatedFrontendData, no: res.no }; 
+          }
+          return res;
+        })
       );
 
     } catch (error) {
       console.error("Failed to cancel reservation:", error);
+      // throw error;
     }
   };
 
-
-  // --- (교체됨) updateReservation 함수 (PUT API 연동) ---
+  // (PUT) AdminPage.tsx의 '1차/2차/상태' 드롭다운 변경
   const updateReservation = async (updatedReservation: Reservation) => {
-  // ... (이전 단계에서 수정한 내용) ...
+    
+  const backendUpdateData = {
+    status1: updatedReservation.status1, // '확인' or '미확인'
+    status2: updatedReservation.status2, // '확인' or '미확인'
+    status: updatedReservation.status,   // '신청중', '승인', '취소'
+    hvacStatus: updatedReservation.hvacStatus, // 👈 [이 줄을 추가!]
   };
 
-  // --- 7. (로딩 처리) ---
+    try {
+      const response = await fetch(`${API_URL}/${updatedReservation.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backendUpdateData),
+      });
+
+      if (!response.ok) throw new Error('예약 수정에 실패했습니다.');
+
+      const savedBackendData: BackendReservation = await response.json();
+      const updatedFrontendData = mapBackendToFrontend(savedBackendData, 0);
+
+      setReservations(prev => 
+        prev.map(res => {
+          if (res.id === updatedFrontendData.id) {
+            return { ...updatedFrontendData, no: res.no }; 
+          }
+          return res;
+        })
+      );
+
+    } catch (error) {
+      console.error("Failed to update reservation:", error);
+      // throw error;
+    }
+  };
+  
+  // --- 7. (신규) AdminPage.tsx용 함수들 ---
+
+  // (PUT) AdminPage.tsx의 '관리자 메모' 저장
+  const updateAdminMemo = async (reservationId: number, adminMemo: string) => {
+    const backendUpdateData = {
+      admin_memo: adminMemo
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/${reservationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backendUpdateData),
+      });
+
+      if (!response.ok) throw new Error('관리자 메모 저장에 실패했습니다.');
+
+      const savedBackendData: BackendReservation = await response.json();
+      const updatedFrontendData = mapBackendToFrontend(savedBackendData, 0);
+      
+      // UI 즉시 업데이트
+      setReservations(prev => 
+        prev.map(res => 
+          res.id === updatedFrontendData.id 
+            ? { ...updatedFrontendData, no: res.no } 
+            : res
+        )
+      );
+
+    } catch (error) {
+      console.error("Failed to update admin memo:", error);
+    }
+  };
+
+  // (POST) AdminPage.tsx의 '일괄 1차 승인'
+  const batchApprove1 = async (reservationIds: number[]) => {
+    try {
+      const response = await fetch(`${API_URL}/batch-approve-1`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservation_ids: reservationIds }),
+      });
+      if (!response.ok) throw new Error('일괄 1차 승인 실패');
+
+      // (성공) UI 즉시 업데이트
+      setReservations(prev =>
+        prev.map(res =>
+          reservationIds.includes(res.id)
+            ? { ...res, status1: '확인' }
+            : res
+        )
+      );
+    } catch (error) {
+      console.error("Failed to batch approve-1:", error);
+    }
+  };
+
+  // (POST) AdminPage.tsx의 '일괄 취소'
+  const batchCancel = async (reservationIds: number[]) => {
+    try {
+      const response = await fetch(`${API_URL}/batch-cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservation_ids: reservationIds }),
+      });
+      if (!response.ok) throw new Error('일괄 취소 실패');
+
+      // (성공) UI 즉시 업데이트
+      setReservations(prev =>
+        prev.map(res =>
+          reservationIds.includes(res.id)
+            ? { ...res, status: '취소' }
+            : res
+        )
+      );
+    } catch (error) {
+      console.error("Failed to batch cancel:", error);
+    }
+  };
+
+  // --- 8. (교체됨) Provider 반환값 ---
+  
   if (isLoading) {
     return <div>데이터를 불러오는 중입니다...</div>;
   }
@@ -340,6 +509,9 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     addReservation,
     cancelReservation,
     updateReservation,
+    batchApprove1,
+    batchCancel,
+    updateAdminMemo,
   };
 
   return (
@@ -349,7 +521,6 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
   );
 }
 
-// ... (useReservations 훅은 기존과 동일) ...
 export function useReservations() {
   const context = useContext(ReservationContext);
   if (context === undefined) {

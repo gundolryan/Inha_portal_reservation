@@ -15,3 +15,7 @@ ALTER TABLE Reservations
 ALTER TABLE Reservations
     ADD COLUMN org_cat1 VARCHAR(100) NULL DEFAULT NULL COMMENT '사용단체 대분류' AFTER facility_id,
     ADD COLUMN org_cat2 VARCHAR(100) NULL DEFAULT NULL COMMENT '사용단체 중분류' AFTER org_cat1;
+-- 신청자 연락처, 이메일 컬럼 2개 추가
+ALTER TABLE Reservations
+    ADD COLUMN submitter_phone VARCHAR(50) NULL COMMENT '신청자 연락처' AFTER submitter_major,
+    ADD COLUMN submitter_email VARCHAR(150) NULL COMMENT '신청자 이메일' AFTER submitter_phone;

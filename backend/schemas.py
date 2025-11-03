@@ -1,10 +1,10 @@
 # backend/schemas.py
 
-from pydantic import BaseModel, ConfigDict # 👈 ConfigDict를 import에 추가
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
-# --- User Schemas ---
+# --- User Schemas (변경 없음) ---
 class UserBase(BaseModel):
     user_id: int
     email: str
@@ -12,9 +12,9 @@ class UserBase(BaseModel):
     phone: Optional[str] = None
 
     class Config:
-        from_attributes = True # 👈 orm_mode 대신 from_attributes
+        from_attributes = True # (orm_mode -> from_attributes)
 
-# --- Facility Schemas (지난번에 수정함) ---
+# --- Facility Schemas (변경 없음) ---
 class FacilityCategory1Base(BaseModel):
     name: str
     class Config:
@@ -34,50 +34,55 @@ class FacilityBase(BaseModel):
     class Config:
         from_attributes = True
         
-# --- Reservation Schemas (가장 중요) ---
+# --- Reservation Schemas (대대적 수정) ---
 
 # [수정됨] API로 예약을 '생성'할 때 프론트엔드가 보내는 데이터 (POST)
-# (app/page.tsx의 handleSubmit과 일치시킴)
 class ReservationCreate(BaseModel):
     user_id: int
     facility_id: int
     
-    # --- [추가됨] 3. 사용단체 분류 ---
     org_cat1: Optional[str] = None
     org_cat2: Optional[str] = None
-    group_name: Optional[str] = None # (세부 단체명)
-
+    group_name: Optional[str] = None
     event_name: Optional[str] = None
-    
-    # --- [추가됨] 2. 행사인원 ---
     event_headcount: Optional[int] = 0
-
     message: Optional[str] = None
     start_time: datetime
     end_time: datetime
     hvac_mode: Optional[str] = 'none'
-
-    # --- [추가됨] 1. 확인부서 ---
     hvac_dept: Optional[str] = None
     approval_1_dept: Optional[str] = None
     approval_2_dept: Optional[str] = None
     
-    # (참고) status, approval_1, approval_2는
-    #       백엔드의 models.py에서 default='pending'으로 자동 설정됨.
-    #       프론트에서 굳이 'pending'으로 보낼 필요 없음.
-    #       (단, app/page.tsx의 handleSubmit에서 보내는
-    #       status: '신청중'은 create_reservation에서 처리 필요)
+    submitter_id: Optional[str] = None
+    submitter_name: Optional[str] = None
+    submitter_major: Optional[str] = None
+    
+    # --- [수정됨] 새 컬럼 2개 추가 ---
+    submitter_phone: Optional[str] = None
+    submitter_email: Optional[str] = None
+    
+    admin_memo: Optional[str] = None
+    
+    status: Optional[str] = 'pending'
+    approval_1: Optional[str] = 'pending'
+    approval_2: Optional[str] = 'pending'
 
 
-# API로 예약을 '수정'할 때 프론트엔드가 보내는 데이터 (PUT)
+# [수정됨] API로 예약을 '수정'할 때 프론트엔드가 보내는 데이터 (PUT)
 class ReservationUpdate(BaseModel):
+    # (관리자 페이지용)
     approval_1: Optional[str] = None 
     approval_2: Optional[str] = None 
     status: Optional[str] = None     
     hvac_mode: Optional[str] = None  
     
-    status1: Optional[str] = None # (page.tsx의 'status1' 필드 대응)
-    status2: Optional[str] = None # (page.tsx의 'status2' 필드 대응)
+    status1: Optional[str] = None 
+    status2: Optional[str] = None 
+    hvacStatus: Optional[str] = None
+    
+    # --- [추가됨] 4. 관리자 메모 (AdminPage.tsx용) ---
+    admin_memo: Optional[str] = None
 
 
 # [수정됨] API가 예약을 '조회'해서 프론트엔드에게 응답하는 데이터 (GET)
@@ -86,22 +91,16 @@ class Reservation(BaseModel):
     user_id: int
     facility_id: int
     
-    # --- [추가됨] 3. 사용단체 분류 ---
     org_cat1: Optional[str] = None
     org_cat2: Optional[str] = None
     group_name: Optional[str] = None
-    
     event_name: Optional[str] = None
-
-    # --- [추가됨] 2. 행사인원 ---
     event_headcount: Optional[int] = 0
-
     message: Optional[str] = None
     start_time: datetime
     end_time: datetime
     hvac_mode: str
     
-    # --- [추가됨] 1. 확인부서 ---
     hvac_dept: Optional[str] = None
     approval_1: str
     approval_1_dept: Optional[str] = None
@@ -109,16 +108,26 @@ class Reservation(BaseModel):
     approval_2_dept: Optional[str] = None
     
     status: str
+
+    submitter_id: Optional[str] = None
+    submitter_name: Optional[str] = None
+    submitter_major: Optional[str] = None
+    
+    # --- [수정됨] 새 컬럼 2개 추가 ---
+    submitter_phone: Optional[str] = None
+    submitter_email: Optional[str] = None
+    
+    admin_memo: Optional[str] = None
+    
     created_at: datetime
     updated_at: datetime
     
-    # 관계형 데이터 (Join해서 가져올 정보)
     user: UserBase
     facility: FacilityBase
 
     class Config:
-        from_attributes = True # 👈 orm_mode 대신 from_attributes
+        from_attributes = True
 
-# --- Batch (일괄) 작업용 스키마 ---
+# --- Batch (일괄) 작업용 스키마 (변경 없음) ---
 class BatchPayload(BaseModel):
     reservation_ids: List[int]
