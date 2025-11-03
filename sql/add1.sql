@@ -13,9 +13,16 @@ CREATE INDEX idx_user_id ON Reservations(user_id);
 CREATE INDEX idx_facility_id ON Reservations(facility_id);
 CREATE INDEX idx_status ON Reservations(status);
 
--- 3. 관리자 계정 미리 등록
-INSERT INTO Users (email, name, dept_id, phone, role_id)
-VALUES ('admin@inha.ac.kr', '관리자', NULL, '010-0000-0000', 4);
+INSERT INTO Users (student_id, password, name, email, dept_id, phone, role_id)
+VALUES (
+    'A2025001',
+    '$2b$12$7rA5pNQk2LZyV9Qh1qVvZOH5EAdkzD9B3fE7R8wN.XkS9fS7y2gWy',  -- admin1234
+    '관리자',
+    'admin@inha.ac.kr',
+    NULL,
+    '010-0000-0000',
+    4
+);
 
 -- 4. 한국 시간대 설정 (1회성)
 SET time_zone = '+09:00';
