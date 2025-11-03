@@ -2,8 +2,7 @@ USE inha_reserv;
 
 -- 1. 예약 시간대 제한 (08:00~21:59)
 ALTER TABLE Reservations
-ADD CONSTRAINT chk_time_range CHECK (
-    TIME(start_time) BETWEEN '08:00:00' AND '21:50:00'
+ADD CONSTRAINT chk_time_range_add1 '08:00:00' AND '21:50:00'
     AND TIME(end_time) BETWEEN '08:09:00' AND '21:59:00'
 );
 
