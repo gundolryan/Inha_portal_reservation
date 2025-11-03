@@ -59,6 +59,8 @@ interface ReservationContextType {
   batchCancel: (reservationIds: number[]) => Promise<void>;
   // (AdminPage.tsx의 메모 저장을 위한 함수)
   updateAdminMemo: (reservationId: number, adminMemo: string) => Promise<void>;
+  // 👇 [NEW] 2차 일괄 확인
+  batchApprove2: (reservationIds: number[]) => Promise<void>;
 }
 
 // --- 2. [수정됨] 백엔드(schemas.py)에서 보내주는 데이터 구조 정의 ---
@@ -475,6 +477,29 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     }
   };
 
+  // 👇 [NEW] (POST) AdminPage.tsx의 '일괄 2차 승인'
+  const batchApprove2 = async (reservationIds: number[]) => {
+    try {
+      const response = await fetch(`${API_URL}/batch-approve-2`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservation_ids: reservationIds }),
+      });
+      if (!response.ok) throw new Error('일괄 2차 승인 실패');
+
+      // (성공) UI 즉시 업데이트
+      setReservations(prev =>
+        prev.map(res =>
+          reservationIds.includes(res.id)
+            ? { ...res, status2: '확인' }
+            : res
+        )
+      );
+    } catch (error) {
+      console.error("Failed to batch approve-2:", error);
+    }
+  };
+
   // (POST) AdminPage.tsx의 '일괄 취소'
   const batchCancel = async (reservationIds: number[]) => {
     try {
@@ -512,6 +537,7 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     batchApprove1,
     batchCancel,
     updateAdminMemo,
+    batchApprove2, // 👈 [NEW]
   };
 
   return (

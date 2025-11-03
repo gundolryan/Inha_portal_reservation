@@ -11,7 +11,7 @@ import { ChangeEvent } from 'react'; // React 이벤트 타입 추가
 
 // AdminPage 컴포넌트 전체 코드를 여기에 포함
 export default function AdminPage() {
-  const { reservations, updateReservation,batchApprove1,batchCancel,updateAdminMemo} = useReservations();
+  const { reservations, updateReservation,batchApprove1,batchCancel,updateAdminMemo, batchApprove2 } = useReservations();
   const { autoRules } = useAuth(); 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
@@ -205,6 +205,19 @@ export default function AdminPage() {
             >
               일괄 확인
               </button>
+            {/* 👇 [NEW] 2차 일괄 확인 버튼 */}
+            <button
+              onClick={() => {
+                if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
+                if (window.confirm(`선택된 ${selectedIds.length}개 항목을 '2차 확인' 처리하시겠습니까?`)) {
+                  batchApprove2(selectedIds);
+                  setSelectedIds([]);
+                }
+              }}
+              className="px-2 py-1 bg-indigo-200 text-indigo-700 text-xs rounded hover:bg-indigo-300"
+            >
+              2차 일괄 확인
+            </button>
             <button 
               onClick={() => {                                                                                
                 if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
