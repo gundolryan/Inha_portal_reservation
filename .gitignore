@@ -76,6 +76,24 @@ frontend/.env.development.local
 frontend/.env.production.local
 frontend/.env.test.local
 
+
+# -------------------------
+# Node / React / Next.js frontend
+# -------------------------
+frontend_final/node_modules/
+frontend_final/.next/
+frontend_final/out/
+frontend_final/build/
+frontend_final/dist/
+frontend_final/.cache/
+
+# Next.js 환경 변수
+frontend_final/.env.local
+frontend_final/.env.development.local
+frontend_final/.env.production.local
+frontend/.env.test.local
+
+
 # npm/yarn logs
 npm-debug.log*
 yarn-debug.log*
