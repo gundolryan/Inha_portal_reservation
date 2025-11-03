@@ -8,10 +8,10 @@ ADD CONSTRAINT chk_time_range CHECK (
 );
 
 -- 2. 중복 탐색 및 조회 속도 향상용 인덱스
-CREATE INDEX idx_reservation_time ON Reservations(facility_id, start_time, end_time);
-CREATE INDEX idx_user_id ON Reservations(user_id);
-CREATE INDEX idx_facility_id ON Reservations(facility_id);
-CREATE INDEX idx_status ON Reservations(status);
+CREATE INDEX idx_reservation_time_add1 ON Reservations(facility_id, start_time, end_time);
+CREATE INDEX idx_user_id_add1 ON Reservations(user_id);
+CREATE INDEX idx_facility_id_add1 ON Reservations(facility_id);
+CREATE INDEX idx_status_add1 ON Reservations(status);
 
 INSERT INTO Users (student_id, password, name, email, dept_id, phone, role_id)
 VALUES (
