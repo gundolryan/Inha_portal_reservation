@@ -35,6 +35,8 @@ CREATE TABLE Users (
     dept_id INT,
     phone VARCHAR(30),
     role_id TINYINT NOT NULL,
+    student_id VARCHAR(20) UNIQUE NULL COMMENT '학번',
+	password VARCHAR(255) NOT NULL COMMENT '비밀번호 (해시 저장)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_user_dept FOREIGN KEY (dept_id) REFERENCES Departments(dept_id),
     CONSTRAINT fk_user_role FOREIGN KEY (role_id) REFERENCES Roles(role_id)
@@ -110,4 +112,3 @@ CREATE TABLE Reservations (
     CONSTRAINT fk_resv_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_resv_fac FOREIGN KEY (facility_id) REFERENCES Facilities(facility_id) ON DELETE CASCADE
 );
-
