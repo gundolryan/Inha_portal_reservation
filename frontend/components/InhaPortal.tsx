@@ -68,6 +68,8 @@ export default function InhaPortal() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showOrgSearchModal, setShowOrgSearchModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [showTermsModal, setShowTermsModal] = useState(false); // 👈 파손 약관 팝업
+  const [checkedTerms6, setCheckedTerms6] = useState(false);
 
   const [viewMode, setViewMode] = useState('month');
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
@@ -104,6 +106,7 @@ export default function InhaPortal() {
   const [eventHeadcount, setEventHeadcount] = useState('');
   const [hvacUsage, setHvacUsage] = useState('미사용');
   const [rentalItems, setRentalItems] = useState('');
+  const [adminMemo, setAdminMemo] = useState('');
 
   const [checkedTerms1, setCheckedTerms1] = useState(false);
   const [checkedTerms2, setCheckedTerms2] = useState(false);
@@ -201,10 +204,67 @@ export default function InhaPortal() {
     setOrgName(''); setOrgMiddleCat(''); setOrgDetail(''); setFinalOrgName('');
     setContact(''); setEmailLocal(''); setEmailDomain('직접입력');
     setEventTitle(''); setEventHeadcount(''); setHvacUsage('미사용'); setRentalItems('');
+    setAdminMemo('');
     setCheckedTerms1(false); setCheckedTerms2(false); setCheckedTerms3(false);
-    setCheckedTerms4(false); setCheckedTerms5(false);
+    setCheckedTerms4(false); setCheckedTerms5(false); setCheckedTerms6(false);
     setPickerDate(today);
   }, []);
+ /**
+     * '최근 내역' 버튼 클릭 시, 날짜를 제외한
+     * 가장 최근의 예약 정보를 폼에 불러옵니다.
+     */
+    const handleLoadRecent = () => {
+      // 1. Context의 전체 예약 목록에서, 현재 사용자의 예약만 필터링
+      const userReservations = reservations
+        .filter(res => res.submitterId === userId && res.status !== '취소')
+        .sort((a, b) => b.id - a.id); // 2. 최신순 정렬 (ID가 가장 높은 것)
+
+      if (userReservations.length === 0) {
+        setAlertMessage('불러올 최근 예약 내역이 없습니다.');
+        return;
+      }
+
+      // 3. 가장 최신 예약 1건을 가져옴
+      const recent = userReservations[0];
+
+      // 4. `handleRowClick`의 로직을 재사용하여 폼 state를 설정
+      
+      // 행사장소
+      setRoomCat1(recent.roomCat1 || '');
+      setRoomCat2(recent.roomCat2 || '');
+      setRoomCat3(recent.roomCat3 || '');
+      setSelectedRoomForm(recent.room);
+      
+      // --- [수정됨] 시간 정보 추가 ---
+      setStartTime(recent.time);
+      setEndTime(recent.endTime);
+      // --------------------------
+
+      // 사용단체
+      setOrgName(recent.orgName);
+      setOrgMiddleCat(recent.orgMiddleCat);
+      setOrgDetail(recent.orgDetail);
+      setFinalOrgName(recent.facility); 
+
+      // 연락처/이메일
+      setContact(recent.contact);
+      setEmailLocal(recent.emailLocal);
+      setEmailDomain(recent.emailDomain);
+
+      // 행사관련
+      setEventTitle(recent.instructor);
+      
+      // --- [수정됨] eventHeadcount 빨간 줄 오류 해결 ---
+      setEventHeadcount(String(recent.eventHeadcount)); // 👈 String()으로 감싸서 타입 오류 해결
+      // ------------------------------------------
+      
+      setHvacUsage(recent.hvacUsage);
+      setRentalItems(recent.rentalItems);
+      
+      setAlertMessage('최근 내역을 불러왔습니다. 날짜를 새로 선택해주세요.');
+    };
+  const IMPORTANT_CATEGORIES = ['가무연습실', '강의실']; 
+  const isImportantFacility = IMPORTANT_CATEGORIES.includes(roomCat1);
 
   const handleRowClick = (reservation: Reservation) => { // 👈 타입 지정
     setSelectedReservationId(reservation.id);
@@ -223,6 +283,7 @@ export default function InhaPortal() {
     setOrgDetail(reservation.orgDetail); setFinalOrgName(reservation.facility);
     setContact(reservation.contact); setEmailLocal(reservation.emailLocal);
     setEventTitle(reservation.instructor); setEventHeadcount(reservation.eventHeadcount);
+    setAdminMemo(reservation.adminMemo);
     setHvacUsage(reservation.hvacUsage); setRentalItems(reservation.rentalItems);
     setCheckedTerms1(false); setCheckedTerms2(false); setCheckedTerms3(false);
     setCheckedTerms4(false); setCheckedTerms5(false);
@@ -249,7 +310,7 @@ export default function InhaPortal() {
 
   const handleCheckAllTerms = () => {
     setCheckedTerms1(true); setCheckedTerms2(true); setCheckedTerms3(true);
-    setCheckedTerms4(true); setCheckedTerms5(true);
+    setCheckedTerms4(true); setCheckedTerms5(true); setCheckedTerms6(true);
   };
   
   // 👈 [NEW] 규칙 확인 함수
@@ -372,6 +433,7 @@ export default function InhaPortal() {
     if (!eventTitle) return setAlertMessage('행사명을 입력해주세요.');
     if (!eventHeadcount || isNaN(parseInt(eventHeadcount)) || parseInt(eventHeadcount) <= 0) return setAlertMessage('행사인원을 정확히 입력해주세요.');
     if (!checkedTerms1 || !checkedTerms2 || !checkedTerms3 || !checkedTerms4 || !checkedTerms5) return setAlertMessage('예약자 확인사항을 모두 체크해주세요.');
+    if (!checkedTerms6) return setAlertMessage('[필수] 기물 파손 및 노쇼 불이익에 관한 특별 유의사항에 동의해야 합니다.');
 
     let determinedDept1 = '학생지원팀'; let determinedDept2 = '학생지원팀';
     // Index signature issue: roomCat2Options[roomCat1]은 string[] | undefined 일 수 있음.
@@ -478,6 +540,13 @@ export default function InhaPortal() {
               <div className="flex items-center gap-4"> <label className="flex items-center gap-2"> <input type="checkbox" className="rounded" /> <span className="text-sm">현 프로그램 담당여부 보기</span> </label> <label className="flex items-center gap-2"> <input type="checkbox" className="rounded" /> <span className="text-sm">사용연대 / 공지사항</span> </label> </div>
               <div className="flex items-center gap-2">
                 <button onClick={handleNew} className="px-3 py-1 bg-gray-100 border border-gray-300 text-sm rounded transform transition-transform active:bg-gray-200 active:scale-95">신규</button>
+                <button
+                  onClick={handleLoadRecent}
+                  className="px-3 py-1 bg-green-600 text-white text-sm rounded disabled:bg-green-300 transform transition-transform active:bg-green-700 active:scale-95"
+                  disabled={isFormDisabled}
+                >
+                  최근 내역
+                </button>
                 <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded disabled:bg-blue-300" disabled={isFormDisabled}>저장</button>
                 <button onClick={handleCancelApplication} className="px-3 py-1 bg-gray-100 border border-gray-300 text-sm rounded transform transition-transform active:bg-gray-200 active:scale-95">신청취소</button>
                 <button className="px-3 py-1 bg-gray-100 border border-gray-300 text-sm rounded transform transition-transform active:bg-gray-200 active:scale-95">도움말</button>
@@ -519,6 +588,16 @@ export default function InhaPortal() {
                       <div className="flex items-center gap-4"> <span className="text-sm w-32">1차확인부서</span> <input type="text" value={dept1} readOnly className="flex-1 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> <span className="text-sm w-16">확인여부</span> <input type="text" value={status1} readOnly className="w-24 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> </div>
                       <div className="flex items-center gap-4"> <span className="text-sm w-32">2차확인부서</span> <input type="text" value={dept2} readOnly className="flex-1 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> <span className="text-sm w-16">확인여부</span> <input type="text" value={status2} readOnly className="w-24 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> </div>
                       <div className="flex items-center gap-4"> <span className="text-sm w-32">냉/난방확인</span> <input type="text" value={hvacCheckDept} readOnly className="flex-1 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> <span className="text-sm w-16">확인여부</span> <input type="text" value={hvacStatus} readOnly className="w-24 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-gray-500" /> </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className="text-sm w-32 font-bold text-red-600">관리자 알림</span>
+                      <input
+                        type="text"
+                        value={adminMemo}
+                        readOnly
+                        className="flex-1 border border-gray-300 rounded px-3 py-1 text-sm bg-gray-100 text-red-600"
+                        placeholder="관리자로부터 전달된 메시지가 없습니다."
+                      />
                     </div>
                   </td>
                 </tr>
@@ -624,6 +703,40 @@ export default function InhaPortal() {
                       <label className="flex items-start gap-2"> <input type="checkbox" checked={checkedTerms3} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCheckedTerms3(e.target.checked)} className="mt-1 flex-shrink-0" disabled={isFormDisabled} /> <div className="text-sm"> <p>다음과 같은 행사의 경우 시설물을 예약할 수 없습니다.</p> <ul className="ml-4 mt-1 space-y-1 text-xs text-gray-600"> <li>- 요청내용과 실제 사용내용이 다른 경우(예: 행사내용, 사용단체 등)</li> <li>- 외부인 및 외부단체가 대다수 참여하는 경우</li> <li>- 시설물 훼손 가능성이 큰 경우</li> <li>- 화재 및 사고위험이 큰 경우</li> <li>- 정치적, 종교적 성향이 과도한 경우</li> <li>- 학생신분으로서 부적절한 경우</li> </ul> </div> </label> {/* 👈 타입 지정 */}
                       <label className="flex items-start gap-2"> <input type="checkbox" checked={checkedTerms4} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCheckedTerms4(e.target.checked)} className="mt-1 flex-shrink-0" disabled={isFormDisabled} /> <span className="text-sm">운동장, 다목적구장, 농구장등 기타외부장소를 이용하는 사용자의 경우 해당 시설에서 수업 진행시 수업에 방해되는 행동과 소음을 자제하여 주시기 바랍니다.</span> </label> {/* 👈 타입 지정 */}
                       <label className="flex items-start gap-2"> <input type="checkbox" checked={checkedTerms5} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCheckedTerms5(e.target.checked)} className="mt-1 flex-shrink-0" disabled={isFormDisabled} /> <span className="text-sm">시설물 사용자 준수사항 (쓰레기수거 및 금연 등) 불이행 단체는 추후 기안시 취소 및 불이익을 받을 수 있습니다.</span> </label> {/* 👈 타입 지정 */}
+                      {isImportantFacility && (
+                        <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
+                          <input 
+                            type="checkbox" 
+                            checked={checkedTerms6}
+
+      
+                            onClick={(e) => {
+        
+                              if (checkedTerms6) {
+                                setCheckedTerms6(false);
+                              } else {
+          
+                                  e.preventDefault(); // 👈 기본 체크 동작 방지
+                                  setShowTermsModal(true); // 👈 팝업 열기
+                                }
+                            }}
+                            className="mt-1 flex-shrink-0" 
+                            disabled={isFormDisabled} 
+                          />
+                          {/* [수정됨] 라벨 텍스트를 클릭해도 팝업이 열리도록 <button>으로 변경 */}
+                          <button 
+                            type="button"
+                            onClick={() => setShowTermsModal(true)} // 👈 텍스트 클릭 시 팝업 열기
+                            disabled={isFormDisabled}
+                            className="text-sm text-left"
+                          >
+                            <span className="font-bold text-red-600">[필수] 기물 파손 시 배상 및 노쇼 불이익</span>에 관한 특별 유의사항을 확인하고 동의합니다.
+                            <span className="text-blue-600 underline ml-1">[내용 보기]</span>
+                          </button>
+                        </div>
+                      )}
+                      
+                  
                       <div className="pt-2"> <button type="button" onClick={handleCheckAllTerms} className={`px-3 py-1 bg-gray-100 border border-gray-300 text-xs rounded hover:bg-gray-200 disabled:bg-gray-100 disabled:text-gray-400 transform transition-transform active:bg-gray-200 active:scale-95 ${isFormDisabled ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={isFormDisabled}> 모두 동의 </button> </div>
                       <div className="text-xs text-gray-600 space-y-1 mt-3">
                         <p>※ 60주년기념관 스터디라운지(총무팀(032-860-7097))를 제외한 시설물 기안에 대한 문의사항은 학생지원팀(032-860-7066)으로 문의하시기 바랍니다.</p>
@@ -655,6 +768,38 @@ export default function InhaPortal() {
            </div>
         </div>
       )}
+      {showTermsModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+    <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+      <h3 className="text-lg font-bold mb-4 text-red-600">⚠ 중요: 시설 사용 특별 유의사항</h3>
+      <div className="text-sm space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+        <p className="font-semibold">예약자는 다음 사항을 숙지하였으며, 위반 시 발생하는 모든 불이익(예약 취소, 향후 사용 제한, 손해 배상 등)에 동의합니다.</p>
+        <ul className="list-disc list-inside space-y-2 text-gray-700">
+          <li>
+            <span className="font-bold text-red-500">[기물 파손]</span> 사용 중 시설 내 비품, 기자재, 장비(빔 프로젝터, 음향기기 등)가 파손되거나 분실된 경우, 즉시 담당 부서에 알려야 하며 원상복구 또는 <span className="font-bold">전액 배상</span>해야 합니다.
+          </li>
+          <li>
+            <span className="font-bold text-red-500">[예약 독점 및 노쇼]</span> 특정 단체나 개인이 예약을 독점하는 행위, 또는 예약 후 합당한 사유 없이 사용하지 않는 행위(노쇼)가 적발될 시, 해당 예약은 <span className="font-bold">즉시 취소</span>되며 <span className="font-bold">향후 1개월간 예약이 금지</span>될 수 있습니다.
+          </li>
+          <li>
+            <span className="font-bold">[청결 유지]</span> 사용 후 발생한 모든 쓰레기는 지정된 장소에 분리수거해야 하며, 책상 및 의자는 원위치시켜야 합니다. (음식물 반입 금지)
+          </li>
+        </ul>
+      </div>
+      <div className="text-right mt-6">
+        <button 
+          onClick={() => {
+            setCheckedTerms6(true); // 👈 '동의' 체크
+            setShowTermsModal(false); // 👈 팝업 닫기
+          }} 
+          className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+        >
+          확인 및 동의
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

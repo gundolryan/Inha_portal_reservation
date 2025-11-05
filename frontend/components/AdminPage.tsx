@@ -72,11 +72,24 @@ export default function AdminPage() {
   }, [selectedDetails]);
 
 
-  const handleAdminRowClick = (reservation: Reservation) => {
-    setSelectedDetails(reservation);
-    // 클릭 시 해당 행의 체크박스도 선택되도록 처리
-    setSelectedIds(prev => (prev.includes(reservation.id) ? prev : [...prev, reservation.id]));
-  };
+  // [이 함수 전체를 아래 코드로 덮어쓰세요]
+
+const handleAdminRowClick = (reservation: Reservation) => {
+  // 1. 하단 폼 상세 정보 설정 (기존 기능)
+  setSelectedDetails(reservation);
+
+  // --- [수정됨] 체크박스(selectedIds) 토글 로직 ---
+  setSelectedIds(prevSelectedIds => {
+    if (prevSelectedIds.includes(reservation.id)) {
+      // 2. ID가 이미 목록에 있으면 (체크된 상태) ➔ 클릭 시 제거 (체크 해제)
+      return prevSelectedIds.filter(id => id !== reservation.id);
+    } else {
+      // 3. ID가 목록에 없으면 (체크 안 된 상태) ➔ 클릭 시 추가 (체크)
+      return [...prevSelectedIds, reservation.id];
+    }
+  });
+  // --------------------------------------------------
+};
   
   // 메모가 변경될 때마다 Context를 업데이트하는 함수 (실제 저장 로직)
   const handleAdminMemoChange = (e: ChangeEvent<HTMLTextAreaElement>) => { // 👈 타입 지정
@@ -205,7 +218,7 @@ export default function AdminPage() {
               }}
               className="px-2 py-1 bg-blue-200 text-blue-700 text-xs rounded hover:bg-blue-300"
             >
-              일괄 확인
+              1차 일괄 확인
               </button>
             {/* 👇 [NEW] 2차 일괄 확인 버튼 */}
             <button
