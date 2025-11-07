@@ -1,4 +1,4 @@
-// 🎯 components/AdminPage.tsx
+// components/AdminPage.tsx
 
 'use client';
 
@@ -11,7 +11,7 @@ import { ChangeEvent } from 'react'; // React 이벤트 타입 추가
 
 // AdminPage 컴포넌트 전체 코드를 여기에 포함
 export default function AdminPage() {
-  const { reservations, updateReservation,batchApprove1,batchCancel,updateAdminMemo, batchApprove2 } = useReservations();
+  const { reservations, updateReservation,batchApprove1,batchCancel,updateAdminMemo, batchApprove2, batchApproveSelected } = useReservations();
   const { autoRules } = useAuth(); 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
@@ -92,18 +92,10 @@ const handleAdminRowClick = (reservation: Reservation) => {
 };
   
   // 메모가 변경될 때마다 Context를 업데이트하는 함수 (실제 저장 로직)
-  const handleAdminMemoChange = (e: ChangeEvent<HTMLTextAreaElement>) => { // 👈 타입 지정
+  const handleAdminMemoChange = (e: ChangeEvent<HTMLTextAreaElement>) => { 
       const newMemo = e.target.value;
       setAdminMemo(newMemo);
       if (selectedDetails) {
-        // (참고) 메모는 타이핑할 때마다 저장하면 비효율적이므로,
-        // AdminPage.tsx의 UI에는 '저장' 버튼이 필요합니다.
-        // 우선은 'admin_memo' 필드만 updateReservation을 통해 저장합니다.
-        // [수정] updateReservation 대신 updateAdminMemo 호출
-
-        // 🚨 TODO: 잦은 API 호출을 막기 위해 '저장' 버튼을 따로 만들거나, 
-        //         '포커스 아웃' 시 저장하는 로직(useRef, onBlur)이 필요합니다.
-        //         우선은 임시로 updateAdminMemo를 호출합니다.
         updateAdminMemo(selectedDetails.id, newMemo);
 
         // 로컬 상태도 업데이트 (Context가 업데이트 해주긴 하지만 중복 실행)
@@ -129,7 +121,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
       setCancelDate(isCanceled ? formatDate(new Date()) : '');
     }
     
-    // --- [NEW] 3. 자동 승인 로직 (UI 즉시 반응용) ---
+    // 자동 승인 로직 (UI 즉시 반응용)
     // (단, '신청취소'를 누른 경우는 이 로직을 건너뜀)
     if (name !== 'statusApplicationCancel' && updatedDetails.status !== '취소') {
         
@@ -158,8 +150,8 @@ const handleAdminRowClick = (reservation: Reservation) => {
     // ---------------------------------------------
 
     // 4. 최종적으로 변경된 'updatedDetails' 객체로 API 호출 및 UI 업데이트
-    updateReservation(updatedDetails); // 👈 Context의 updateReservation 호출
-    setSelectedDetails(updatedDetails); // 👈 하단 폼 UI 즉시 업데이트
+    updateReservation(updatedDetails); //  Context의 updateReservation 호출
+    setSelectedDetails(updatedDetails); // 하단 폼 UI 즉시 업데이트
   };
 
   const handleBulkAction = (action: string) => {
@@ -169,9 +161,9 @@ const handleAdminRowClick = (reservation: Reservation) => {
   // 공통 CSS 클래스 정의
   const INPUT_READONLY_CLASS = "w-full border border-gray-300 px-2 py-1 text-xs bg-gray-100 rounded";
   const SELECT_STATUS_CLASS = "border border-gray-300 rounded px-1 py-1 text-xs w-20";
-  const LABEL_CLASS = "w-[80px] font-medium text-gray-700 flex-shrink-0 text-left mr-2"; // 라벨 너비 고정
+  const LABEL_CLASS = "w-[80px] font-medium text-gray-700 flex-shrink-0 text-left mr-2"; 
 
-  const Row = ({ children }: { children: React.ReactNode }) => ( // 👈 타입 지정
+  const Row = ({ children }: { children: React.ReactNode }) => ( 
     <div className="flex w-full mb-1">{children}</div>
   );
   
@@ -183,7 +175,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
   );
 
   return (
-    <div className="p-4 bg-gray-100 min-h-screen flex flex-col">
+    <div className="p-4 bg-gray-100 h-screen flex flex-col">
       
       {/* 1. 상단 검색/필터 영역 */}
       <div className="bg-white p-3 border border-gray-300 rounded mb-4 flex-shrink-0">
@@ -202,17 +194,15 @@ const handleAdminRowClick = (reservation: Reservation) => {
             <button onClick={handleSearch} className="ml-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"> 조회 </button>
           </div>
           <div className="flex items-center gap-1 text-sm">
-             {/* 👈 [NEW] 규칙 관리 버튼 추가 */}
+             {/* 규칙 관리 버튼 추가 */}
             <button onClick={() => setShowRuleModal(true)} className="px-2 py-1 bg-green-200 text-green-700 text-xs rounded hover:bg-green-300">
                 자동 규칙 관리 ({autoRules.length})
             </button>
-            <button onClick={() => handleBulkAction('메세지 발송')} className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">일괄 메세지 발송</button>
-            
             <button
               onClick={() => {
                 if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
                 if (window.confirm(`선택된 ${selectedIds.length}개 항목을 '1차 확인' 처리하시겠습니까?`)) {
-                  batchApprove1(selectedIds); // 👈 API 함수 호출
+                  batchApprove1(selectedIds); // API 함수 호출
                   setSelectedIds([]); // 선택 해제
                 }
               }}
@@ -220,7 +210,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
             >
               1차 일괄 확인
               </button>
-            {/* 👇 [NEW] 2차 일괄 확인 버튼 */}
+            {/* 2차 일괄 확인 버튼 */}
             <button
               onClick={() => {
                 if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
@@ -233,6 +223,18 @@ const handleAdminRowClick = (reservation: Reservation) => {
             >
               2차 일괄 확인
             </button>
+            <button
+              onClick={() => {
+                if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
+                if (window.confirm(`선택된 ${selectedIds.length}개 항목을 '일괄 승인' 처리하시겠습니까?`)) {
+                  batchApproveSelected(selectedIds); // Context의 새 함수 호출
+                  setSelectedIds([]); // 선택 해제
+             }
+          }}
+          className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+        >
+           ✔️ 선택 일괄 승인
+          </button>
             <button 
               onClick={() => {                                                                                
                 if (selectedIds.length === 0) return alert('항목을 먼저 선택하세요.');
@@ -314,7 +316,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
                     >
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(res.id)} // 👈 선택 상태
+                        checked={selectedIds.includes(res.id)} // 선택 상태
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedIds(prev => [...prev, res.id]);
@@ -413,7 +415,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
                     <input type="text" value={cancelDate} readOnly className={INPUT_READONLY_CLASS}/>
                 </Field>
                 
-                {/* 👈 [MODIFIED] 관리자 입력 라벨 및 불필요한 필드 제거, 체크박스만 남김 */}
+                {/*  관리자 입력 라벨 및 불필요한 필드 제거, 체크박스만 남김 */}
                 <div className="flex items-center w-2/3 px-1 justify-start space-x-3">
                      {/* 확인 상태 요약 체크박스 */}
                     <div className="flex justify-start items-center text-xs space-x-3">
@@ -464,7 +466,7 @@ const handleAdminRowClick = (reservation: Reservation) => {
              </div>
         </div>
       </div>
-       {/* 👈 [NEW] 규칙 모달 렌더링 */}
+       {/* 규칙 모달 렌더링 */}
       {showRuleModal && <RuleModal onClose={() => setShowRuleModal(false)} />}
     </div>
   );

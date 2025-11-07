@@ -131,3 +131,6 @@ class Reservation(BaseModel):
 # --- Batch (일괄) 작업용 스키마 (변경 없음) ---
 class BatchPayload(BaseModel):
     reservation_ids: List[int]
+
+class MessageResponse(BaseModel):
+    message: str

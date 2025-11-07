@@ -47,7 +47,7 @@ type NewReservationData = Omit<Reservation, 'id' | 'no' | 'adminMemo'> & {
     submitterMajor: string;
 };
 
-// --- [수정됨] API 연동을 위한 새 함수들 추가 (관리자용) ---
+// --- API 연동을 위한 새 함수들 추가 (관리자용) ---
 interface ReservationContextType {
   reservations: Reservation[];
   addReservation: (newReservation: NewReservationData) => Promise<void>; // (async)
@@ -59,11 +59,11 @@ interface ReservationContextType {
   batchCancel: (reservationIds: number[]) => Promise<void>;
   // (AdminPage.tsx의 메모 저장을 위한 함수)
   updateAdminMemo: (reservationId: number, adminMemo: string) => Promise<void>;
-  // 👇 [NEW] 2차 일괄 확인
+  //  2차 일괄 확인
   batchApprove2: (reservationIds: number[]) => Promise<void>;
 }
 
-// --- 2. [수정됨] 백엔드(schemas.py)에서 보내주는 데이터 구조 정의 ---
+// ---  백엔드(schemas.py)에서 보내주는 데이터 구조 정의 ---
 interface BackendUser {
   user_id: number;
   email: string;
@@ -132,6 +132,11 @@ const mapBackendToFrontend = (be: BackendReservation, index: number): Reservatio
   // [수정됨] email을 user.email이 아닌 submitter_email에서 가져옴
   const [emailLocal, emailDomain] = be.submitter_email ? be.submitter_email.split('@') : ['', ''];
 
+  const year = createdAt.getFullYear();
+  const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+  const day = String(createdAt.getDate()).padStart(2, '0');
+  const kstDateString = `${year}-${month}-${day}`;
+
   let feStatus: '신청중' | '승인' | '취소' = '신청중';
   if (be.status === 'confirmed') feStatus = '승인';
   if (be.status === 'cancelled') feStatus = '취소';
@@ -142,7 +147,7 @@ const mapBackendToFrontend = (be: BackendReservation, index: number): Reservatio
   return {
     id: be.reservation_id,
     no: index + 1,
-    date: createdAt.toISOString().split('T')[0],
+    date: kstDateString,
     facility: be.group_name || '',
     instructor: be.event_name || '',
     room: be.facility.name,
@@ -212,8 +217,8 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
         
         // (핵심) 백엔드 데이터를 프론트엔드 형식으로 "번역"
         const frontendData: Reservation[] = backendData
-          .map(mapBackendToFrontend)
-          .sort((a, b) => b.id - a.id); // 최신순 정렬 (ID 내림차순)
+          .sort((a, b) => b.reservation_id - a.reservation_id) // 1. 백엔드 ID로 먼저 정렬
+          .map(mapBackendToFrontend); // 2. 그 후에 map을 실행 (연번 1, 2, 3... 부여)
           
         setReservations(frontendData);
         
@@ -267,17 +272,22 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
   '학생회관406호': 36,
   '5남-101': 37, '5남-102': 38, '5남-201': 39, '5남-202': 40,
   '하-101': 41, '하-102': 42, '하-201': 43, '하-202': 44,
+  '본관 대강당': 45,
+  '본관 중강당': 46,
+  '본관 소강당': 47,
+  '5남 소강당': 48,
+  '후문': 49,
+  '광장': 50,
+  '음악감상실': 51,
+  '60주년기념관 1층 로비': 52,
+  '60주년기념관 2층 로비': 53,
   };
   const addReservation = async (newReservation: NewReservationData) => {
-
-    // 1. 프론트엔드 폼 데이터 -> 백엔드 API 형식으로 "역-번역"
-
-    // [수정됨] Bug 1: facility_id 하드코딩 제거
     // InhaPortal.tsx에서 보낸 room(시설명)을 ID로 변환
     const facilityName = newReservation.room;
     const facility_id = facilityNameToIdMap[facilityName] || 1; // 맵에서 찾고, 못찾으면 1번(기본)
 
-    // [수정됨] Bug 2: email/contact 매핑
+    //  email/contact 매핑
     // InhaPortal.tsx에서 보낸 contact, emailLocal, emailDomain 사용
     const submitter_phone = newReservation.contact;
     const submitter_email = newReservation.emailDomain === '직접입력' 
@@ -285,9 +295,8 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
                             : `${newReservation.emailLocal}@${newReservation.emailDomain}`;
 
     const backendCreateData = {
-      // 🚨 TODO: 로그인 기능 구현 후 실제 user_id로 변경해야 함
       user_id: 1, 
-      facility_id: facility_id, // 👈 [수정됨]
+      facility_id: facility_id, 
 
       org_cat1: newReservation.orgName,
       org_cat2: newReservation.orgMiddleCat,
@@ -339,7 +348,7 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
       setReservations(prev => {
         const renumberedPrev = prev.map(item => ({ ...item, no: item.no + 1 }));
         newFrontendData.no = 1;
-        return [newFrontendData, ...prev];
+        return [newFrontendData, ...renumberedPrev];
       });
 
     } catch (error) {
@@ -466,18 +475,25 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
 
       // (성공) UI 즉시 업데이트
       setReservations(prev =>
-        prev.map(res =>
-          reservationIds.includes(res.id)
-            ? { ...res, status1: '확인' }
-            : res
-        )
+        prev.map(res => {
+          if (reservationIds.includes(res.id)) {
+            const newRes = { ...res, status1: '확인' }; // 1. 1차를 '확인'으로 변경
+            let hvacOk = (newRes.hvacStatus === '미신청' || newRes.hvacStatus === '확인');
+            // 2. 2차도 '확인'이고 냉난방OK면 ➔ 최종 승인
+            if (newRes.status2 === '확인' && hvacOk) {
+              newRes.status = '승인'; 
+            }
+            return newRes;
+          }
+          return res;
+        })
       );
     } catch (error) {
       console.error("Failed to batch approve-1:", error);
     }
   };
 
-  // 👇 [NEW] (POST) AdminPage.tsx의 '일괄 2차 승인'
+  // (POST) AdminPage.tsx의 '일괄 2차 승인'
   const batchApprove2 = async (reservationIds: number[]) => {
     try {
       const response = await fetch(`${API_URL}/batch-approve-2`, {
@@ -489,14 +505,56 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
 
       // (성공) UI 즉시 업데이트
       setReservations(prev =>
-        prev.map(res =>
-          reservationIds.includes(res.id)
-            ? { ...res, status2: '확인' }
-            : res
-        )
+        prev.map(res => {
+          if (reservationIds.includes(res.id)) {
+            const newRes = { ...res, status2: '확인' }; // 1. 2차를 '확인'으로 변경
+            let hvacOk = (newRes.hvacStatus === '미신청' || newRes.hvacStatus === '확인');
+            // 2. 1차도 '확인'이고 냉난방OK면 ➔ 최종 승인
+            if (newRes.status1 === '확인' && hvacOk) {
+              newRes.status = '승인';
+            }
+            return newRes;
+          }
+          return res;
+        })
       );
     } catch (error) {
       console.error("Failed to batch approve-2:", error);
+    }
+  };
+
+const batchApproveSelected = async (ids: number[]) => {
+    try {
+      const response = await fetch(
+        'http://localhost:8000/api/reservations/batch-approve-selected', 
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', 
+          body: JSON.stringify({ reservation_ids: ids }),
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || '일괄 승인에 실패했습니다.');
+      }
+
+      // API 성공 시, 로컬 state(reservations)를 수동으로 갱신
+      setReservations(prevReservations => 
+        prevReservations.map(resv => 
+          ids.includes(resv.id) 
+            ? { ...resv, status: '승인', status1: '확인', status2: '확인' }
+            : resv
+        )
+      );
+      
+      alert(data.message); // 성공 메시지 표시
+
+    } catch (error) {
+      console.error('Error batch approving selected:', error);
+      alert(error.message);
     }
   };
 
@@ -523,7 +581,7 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     }
   };
 
-  // --- 8. (교체됨) Provider 반환값 ---
+  // --- Provider 반환값 ---
   
   if (isLoading) {
     return <div>데이터를 불러오는 중입니다...</div>;
@@ -537,7 +595,8 @@ export function ReservationProvider({ children }: ReservationProviderProps) {
     batchApprove1,
     batchCancel,
     updateAdminMemo,
-    batchApprove2, // 👈 [NEW]
+    batchApprove2,
+    batchApproveSelected,
   };
 
   return (

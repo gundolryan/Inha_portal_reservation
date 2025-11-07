@@ -11,6 +11,7 @@ import io
 import models
 import schemas
 from database import engine, get_db, Base
+from schemas import BatchPayload, MessageResponse
 
 # FastAPI 앱 생성
 app = FastAPI()
@@ -20,8 +21,10 @@ app = FastAPI()
 from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
-    "http://localhost:3000", # Next.js 개발 서버 주소
+    "http://localhost:3000", 
     "http://127.0.0.1:3000",
+    "http://localhost:3001", 
+    "http://127.0.0.1:3001",
 ]
 
 app.add_middleware(
@@ -336,6 +339,43 @@ def batch_approve_2_reservations(
 
     return {"message": f"Successfully approved (2nd) {updated_count} reservations."}
 
+@app.post("/api/reservations/batch-approve-selected", response_model=MessageResponse)
+def batch_approve_selected(
+    payload: schemas.BatchPayload, # 님의 기존 BatchPayload 재사용
+    db: Session = Depends(get_db)
+    # (참고) 여기에 기존에 쓰던 관리자 인증 로직(Depends(...))이 있다면 똑같이 추가하세요.
+):
+    """
+    선택된 '신청중' 예약을 일괄 승인 (1, 2차, 최종상태 모두 변경)
+    """
+    
+    ids_to_approve = payload.reservation_ids
+    if not ids_to_approve:
+        # return {"message": "No reservation IDs provided"}
+        # 400 에러를 반환하는 것이 더 좋습니다.
+        raise HTTPException(status_code=400, detail="승인할 항목을 선택해주세요.")
+
+    # (중요) '신청중(pending)'인 항목만 대상으로 일괄 승인합니다.
+    updated_count = db.query(models.Reservation).filter(
+        models.Reservation.reservation_id.in_(ids_to_approve),
+        models.Reservation.status == 'pending' # ⬅️ (중요) 안전장치!
+    ).update(
+        {
+            # 님의 기존 코드 패턴(batch_approve_1)을 따릅니다.
+            models.Reservation.approval_1: 'approved',
+            models.Reservation.approval_2: 'approved',
+            models.Reservation.status: 'confirmed'
+        },
+        synchronize_session=False # ⬅️ 님의 기존 코드 패턴
+    )
+    
+    db.commit()
+
+    if updated_count == 0:
+        raise HTTPException(status_code=404, detail="승인할 '신청중' 상태의 예약이 없습니다.")
+
+    return {"message": f"총 {updated_count}건의 예약이 일괄 승인되었습니다."}
+
 @app.get("/api/reservations/export")
 def export_reservations_to_excel(
     db: Session = Depends(get_db),
@@ -384,8 +424,8 @@ def export_reservations_to_excel(
         sheet.append([
             res.reservation_id,
             res.created_at.strftime("%Y-%m-%d"), # 날짜 형식
-            res.user.name,
-            res.user.phone,
+            res.submitter_name,                
+            res.submitter_phone,
             res.group_name,
             res.facility.name,
             res.event_name,
@@ -414,7 +454,3 @@ def export_reservations_to_excel(
 @app.get("/")
 def read_root():
     return {"message": "인하대학교 시설 예약 시스템 백엔드 (DB 연결 완료)"}
-
-#
-# TODO: POST (생성) / PUT (수정) API 구현
-#

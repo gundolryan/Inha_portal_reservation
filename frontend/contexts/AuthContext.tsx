@@ -8,7 +8,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 export interface AutoRule {
   id: number;
   type: 'allow' | 'deny';
-  targetType: 'submitter' | 'facility';
+  targetType: 'submitter' | 'facility' | 'facility_type';
   targetValue: string;
   description: string;
 }
